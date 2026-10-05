@@ -43,8 +43,8 @@ operation time. Component timings are separate diagnostic measurements.
 | 11 | Ring collective probe on two local CPU processes; strict world size and timeout | Verified `a541c0b`; local checks and CI passed |
 | 12 | Distributed context attention; all-gather m/l/u, full output on both ranks | Verified `097ccb9`; local checks and CI passed |
 | 13 | Optimized head-split control; full gathered output and correct GQA head ownership | Verified `be64c13`; local checks and CI passed |
-| 14 | Distributed benchmark runner; full operation latency and per-rank raw data | Implemented; local checks pass; CI pending |
-| 15 | Prepare two physical Macs: inventory, connection, access, identical checkout/lock | Hardware required |
+| 14 | Distributed benchmark runner; full operation latency and per-rank raw data | Verified `73b5735`; local checks and CI passed |
+| 15 | Prepare two physical Macs: inventory, connection, access, identical checkout/lock | Waiting for second Mac preparation/access |
 | 16 | Physical transport/correctness probe and measured communication latency | Hardware required |
 | 17 | Three-mode physical campaign; single mode on each Mac and best single control | Hardware required |
 | 18 | Evidence report: latency, memory, numerical error, bottleneck and next decision | Requires steps 15–17 |

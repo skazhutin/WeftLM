@@ -12,6 +12,9 @@ are pending. The project will
 measure whether context parallelism offers useful latency or memory benefits across
 multiple Macs.
 
+See the [software verification checkpoint](docs/experiments/software-verification-2026-10-06.md)
+for completed checks and the physical-hardware boundary.
+
 ## Goals
 
 - Context-parallel attention across Apple Silicon devices
