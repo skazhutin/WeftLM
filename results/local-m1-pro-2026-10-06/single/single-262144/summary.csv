@@ -1,0 +1,2 @@
+repeats,median_ms,p95_ms,min_ms,mode,length,dtype,rank
+50,9.5814375,14.242959,8.345,single,262144,float16,0

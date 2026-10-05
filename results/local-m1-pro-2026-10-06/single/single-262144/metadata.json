@@ -1,0 +1,42 @@
+{
+  "timestamp_utc": "2026-10-05T21:41:27.786595+00:00",
+  "python": "3.12.13",
+  "os": "macOS-27.0-arm64-arm-64bit",
+  "architecture": "arm64",
+  "mlx": "0.32.3",
+  "weftlm": "0.1.0",
+  "revision": "944497b234efc5cc0dc8acd956261405b3357723",
+  "tracked_source_dirty": false,
+  "chip": "Apple M1 Pro",
+  "physical_memory_bytes": "17179869184",
+  "swap": "total = 5120.00M  used = 4369.50M  free = 750.50M  (encrypted)",
+  "config": {
+    "length": 262144,
+    "hq": 32,
+    "hkv": 8,
+    "dim": 128,
+    "dtype": "float16",
+    "seed": 0,
+    "block_size": 4096
+  },
+  "mode": "single",
+  "rank": 0,
+  "world_size": 1,
+  "device": "gpu",
+  "data_kind": "synthetic",
+  "fixture_version": 1,
+  "warmup": 10,
+  "repeats": 50,
+  "error": {
+    "max_abs": 7.62939453125e-06,
+    "rmse": 9.860837053565774e-07,
+    "finite": true,
+    "atol": 0.001,
+    "rtol": 0.01,
+    "passed": true
+  },
+  "peak_mlx_bytes": 1074298880,
+  "memory_scope": "MLX operation peak; process RSS is lifetime peak",
+  "swap_after": "total = 7168.00M  used = 6899.69M  free = 268.31M  (encrypted)",
+  "peak_process_rss_bytes": 3567796224
+}

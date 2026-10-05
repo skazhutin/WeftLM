@@ -110,6 +110,9 @@ raw `samples.jsonl`, `metadata.json` and `summary.csv` (nearest-rank p95).
 Output directories must be new. `local-context` is a blocked calculation on one
 Mac; it is not a measurement of two-node context parallelism.
 
+The [first local campaign](docs/experiments/local-2026-10-06.md) includes raw
+measurements and explicitly records system swap/memory-pressure limitations.
+
 ### Planned physical experiments
 
 1. **Correctness on one Mac.** Implement an independent full-attention reference,

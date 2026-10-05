@@ -76,7 +76,7 @@ def write_results(directory: Path, metadata: dict, samples_ns: list[int]) -> dic
         }
     )
     with (directory / "summary.csv").open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(summary))
+        writer = csv.DictWriter(handle, fieldnames=list(summary), lineterminator="\n")
         writer.writeheader()
         writer.writerow(summary)
     return summary
