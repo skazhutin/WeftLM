@@ -7,6 +7,7 @@ import mlx.core as mx
 
 from .baselines import optimized_attention
 from .fixtures import AttentionConfig, make_inputs
+from .golden import write_reference
 from .partial import context_attention
 from .reference import reference_attention
 from .results import environment_metadata, write_results
@@ -72,4 +73,6 @@ def benchmark_local(
     summary = write_results(output, metadata, measurements.samples_ns)
     if not error["passed"]:
         raise RuntimeError(f"Attention correctness check failed; artifacts: {output}")
+    if mode == "single":
+        write_reference(output, config, expected)
     return summary

@@ -5,8 +5,10 @@ Experimental context-parallel inference for long-context LLMs on Apple Silicon.
 ## Status
 
 The independent reference, stable local KV merging, GQA, FP16/FP32 and bounded
-KV blocks are implemented. The research CLI supports local measurements;
-distributed benchmarks are planned next. The project will
+KV blocks are implemented. The research CLI supports local measurements and
+two-participant context/head partitioning through MLX ring/TCP. CPU integration
+tests and GPU checks use two local processes. Physical two-Mac measurements
+are pending. The project will
 measure whether context parallelism offers useful latency or memory benefits across
 multiple Macs.
 
@@ -49,8 +51,8 @@ uv build
 ```
 
 The environment test evaluates a small MLX matrix multiplication on CPU and
-checks its result. It verifies the dependency setup; it does not test attention
-correctness or distributed performance yet.
+checks its result. The suite also covers attention correctness, partitioned
+fixtures, fresh evaluation, raw artifacts and two local CPU processes.
 
 GitHub Actions runs these checks on macOS ARM64 with Python 3.12 for pushes to
 `main` and pull requests. CI uses the CPU backend for the environment test and
@@ -78,14 +80,14 @@ environment, caches, and build outputs are excluded from Git.
 ## Project layout
 
 ```text
-src/weftlm/           Python package; no computational API yet
-tests/               Environment checks and future correctness tests
+src/weftlm/           Experimental attention and benchmark modules
+tests/               Numerical, CLI and local distributed integration checks
 docs/project_spec.md  Original project specification in Russian
 ```
 
 The [project specification](docs/project_spec.md) describes the experiment,
-comparison contract, and measurement protocol. Its implementation tasks are
-planned work, not features already present in this scaffold.
+comparison contract, and measurement protocol. The roadmap distinguishes
+verified implementation from pending physical experiments and conditional work.
 
 The [implementation roadmap](docs/roadmap.md) tracks individual tasks and verified
 commits. The small reference is available as
@@ -107,18 +109,35 @@ Use `--device cpu` for small correctness/CLI checks, and `--help` for all option
 Benchmarks default to 10 warmups and 50 measurements at 4k, 16k, 64k, 128k and
 256k tokens. Inputs are generated outside timing. Each result directory contains
 raw `samples.jsonl`, `metadata.json` and `summary.csv` (nearest-rank p95).
+Verified `single` runs also save a small independent `reference.json` output.
 Output directories must be new. `local-context` is a blocked calculation on one
 Mac; it is not a measurement of two-node context parallelism.
 
 The [first local campaign](docs/experiments/local-2026-10-06.md) includes raw
 measurements and explicitly records system swap/memory-pressure limitations.
 
+### Distributed commands
+
+```sh
+uv run --locked mlx.launch --backend ring -n 2 --python .venv/bin/python -- \
+  -m weftlm check-distributed --device cpu --mode context
+uv run --locked mlx.launch --backend ring -n 2 --python .venv/bin/python -- \
+  -m weftlm check-distributed --device cpu --mode heads
+uv run --locked mlx.launch --backend ring -n 2 --python .venv/bin/python -- \
+  -m weftlm bench --mode context --lengths 4096 --topology local-processes \
+  --link-description "loopback TCP" --output results/context-local-debug
+```
+
+Use `--mode heads` for the optimized head-split control. Each rank writes its
+own directory; total latency is reduced by maximum across participants for
+each iteration before computing median/p95. Long lengths require `--reference`
+from a verified single run. See [distributed instructions](docs/distributed.md)
+for artifacts, diagnostics, failure handling and physical-node preparation.
+
 ### Planned physical experiments
 
-1. **Correctness on one Mac.** Implement an independent full-attention reference,
-   local shard statistics, and stable merging of KV shards. Cover grouped-query
-   attention without duplicating KV, unequal or empty shards, concentrated
-   attention, and FP32 before a lower-precision working format.
+1. **Prepare two Macs.** Record hardware and connection, make both nodes reachable,
+   install the same checkout/lock and verify the transport and numerical results.
 2. **Decode attention on two physical Macs.** Keep each node's KV shard local and
    exchange partial results through MLX Distributed. Verify the available
    transport separately; two processes on one Mac are a debugging tool.

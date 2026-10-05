@@ -17,10 +17,11 @@ from .distributed import (
     partition_inputs,
     probe_collectives,
 )
+from .distributed_benchmark import benchmark_distributed
 from .fixtures import AttentionConfig, make_inputs
 from .partial import context_attention
 from .reference import reference_attention
-from .results import summarize_directory
+from .results import environment_metadata, summarize_directory, write_failure
 
 
 def add_config(parser, *, lengths):
@@ -72,10 +73,21 @@ def main(argv=None) -> int:
     )
     bench = commands.add_parser("bench", help="Measure a synthetic attention operation")
     add_config(bench, lengths=True)
-    bench.add_argument("--mode", choices=["single", "local-context"], default="single")
+    bench.add_argument(
+        "--mode",
+        choices=["single", "local-context", "context", "heads"],
+        default="single",
+    )
     bench.add_argument("--warmup", type=int, default=10)
     bench.add_argument("--repeats", type=int, default=50)
     bench.add_argument("--output", type=Path, required=True)
+    bench.add_argument("--reference", type=Path)
+    bench.add_argument(
+        "--topology",
+        choices=["unspecified", "local-processes", "two-macs"],
+        default="unspecified",
+    )
+    bench.add_argument("--link-description", default="unspecified")
     summary = commands.add_parser(
         "summarize", help="Recalculate summary from raw samples"
     )
@@ -160,19 +172,71 @@ def main(argv=None) -> int:
             raise ValueError("Lengths must be unique")
         if args.warmup < 0 or args.repeats <= 0:
             raise ValueError("Warmup must be nonnegative and repeats must be positive")
-        args.output.mkdir(parents=True, exist_ok=False)
+        distributed = args.mode in ("context", "heads")
+        group = initialize_group() if distributed else None
+        if distributed:
+            agree_protocol(
+                group,
+                {
+                    "configs": [asdict(config) for config in configs],
+                    "mode": args.mode,
+                    "device": args.device,
+                    "warmup": args.warmup,
+                    "repeats": args.repeats,
+                },
+            )
+            # Works with shared local storage and separate physical-node filesystems.
+            args.output.mkdir(parents=True, exist_ok=True)
+            output_root = args.output / f"rank-{group.rank()}"
+        else:
+            if (
+                args.reference is not None
+                or args.topology != "unspecified"
+                or args.link_description != "unspecified"
+            ):
+                raise ValueError(
+                    "Reference/topology/link options require a distributed mode"
+                )
+            output_root = args.output
+        output_root.mkdir(parents=True, exist_ok=False)
         for config in configs:
-            print(
-                json.dumps(
-                    benchmark_local(
+            options = {
+                "mode": args.mode,
+                "output": output_root / f"{args.mode}-{config.length}",
+                "device": device,
+                "warmup": args.warmup,
+                "repeats": args.repeats,
+            }
+            try:
+                if distributed:
+                    result = benchmark_distributed(
                         config,
-                        mode=args.mode,
-                        output=args.output / f"{args.mode}-{config.length}",
-                        device=device,
-                        warmup=args.warmup,
-                        repeats=args.repeats,
+                        group=group,
+                        reference_directory=args.reference,
+                        topology=args.topology,
+                        link_description=args.link_description,
+                        **options,
                     )
-                ),
+                else:
+                    result = benchmark_local(config, **options)
+            except (ValueError, OSError, RuntimeError) as error:
+                if not options["output"].exists():
+                    write_failure(
+                        options["output"],
+                        {
+                            **environment_metadata(),
+                            "config": asdict(config),
+                            "mode": args.mode,
+                            "rank": group.rank() if distributed else 0,
+                            "world_size": group.size() if distributed else 1,
+                            "device": args.device,
+                            "topology": args.topology,
+                        },
+                        error,
+                    )
+                raise
+            print(
+                json.dumps(result),
                 flush=True,
             )
         return 0

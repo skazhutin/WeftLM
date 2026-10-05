@@ -91,3 +91,19 @@ def test_truncated_measurements_are_rejected(tmp_path, capsys):
     path.write_text(path.read_text().splitlines()[0] + "\n")
     with pytest.raises(ValueError, match="Incomplete"):
         summarize_directory(output)
+
+
+def test_operation_failure_is_recorded_without_fake_timings(tmp_path, monkeypatch):
+    def fail(*args, **kwargs):
+        raise RuntimeError("Simulated allocation failure")
+
+    monkeypatch.setattr("weftlm.__main__.benchmark_local", fail)
+    output = tmp_path / "failed"
+    with pytest.raises(SystemExit):
+        main(["bench", "--device", "cpu", "--lengths", "8", "--output", str(output)])
+    records = summarize_directory(output)
+    assert len(records) == 1
+    assert records[0]["status"] == "failed"
+    assert "allocation failure" in records[0]["reason"]
+    assert "median_ms" not in records[0]
+    assert not list(output.rglob("samples.jsonl"))
