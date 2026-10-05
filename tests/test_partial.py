@@ -86,3 +86,34 @@ def test_concentrated_attention(winner):
     )
     assert mx.all(out == winner).item()
     assert mx.allclose(out, reference_attention(q, k, v)).item()
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_fp16_inputs_keep_fp32_statistics(seed):
+    q, k, v = fixture_arrays(
+        hq=8, hkv=2, length=73, dim=16, seed=seed, dtype=mx.float16
+    )
+    cuts = [0, 1, 30, 73]
+    parts = [
+        partial_attention(q, k[:, :, a:b], v[:, :, a:b]) for a, b in zip(cuts, cuts[1:])
+    ]
+    assert all(x.dtype == mx.float32 for p in parts for x in (p.m, p.l, p.u))
+    out = merge_partials(parts, dtype=mx.float16)
+    expected = reference_attention(q, k.astype(mx.float16), v.astype(mx.float16))
+    assert out.dtype == mx.float16
+    assert mx.allclose(out, expected, rtol=1e-2, atol=1e-3).item()
+
+
+def test_fp16_large_dot_products_do_not_overflow_statistics():
+    q = mx.full((1, 4, 1, 128), 1000, dtype=mx.float16)
+    k = mx.full((1, 1, 3, 128), 1000, dtype=mx.float16)
+    v = mx.ones_like(k) * 7
+    part = partial_attention(q, k, v)
+    assert mx.all(mx.isfinite(part.m)).item()
+    assert mx.all(merge_partials([part], dtype=mx.float16) == 7).item()
+
+
+def test_mixed_input_dtypes_are_rejected():
+    q, k, v = fixture_arrays()
+    with pytest.raises(ValueError, match="same"):
+        partial_attention(q.astype(mx.float16), k, v)

@@ -22,6 +22,7 @@ def partial_attention(
 ) -> PartialAttention:
     hq, hkv, length, dim = validate_inputs(q, k, v, allow_empty=True)
     factor = attention_scale(dim, scale)
+    q, k, v = (x.astype(mx.float32) for x in (q, k, v))
     if length == 0:
         return PartialAttention(
             mx.full((1, hq, 1, 1), -float("inf")),
@@ -42,10 +43,14 @@ def partial_attention(
     )
 
 
-def merge_partials(parts: Sequence[PartialAttention]) -> mx.array:
+def merge_partials(
+    parts: Sequence[PartialAttention], *, dtype: mx.Dtype = mx.float32
+) -> mx.array:
     """Recover complete attention; local outputs must not simply be averaged."""
     if not parts:
         raise ValueError("At least one partial result is required")
+    if dtype not in (mx.float32, mx.float16):
+        raise ValueError("Output dtype must be float32 or float16")
     shape = parts[0].u.shape
     if len(shape) != 4 or shape[0] != 1 or shape[2] != 1 or min(shape) <= 0:
         raise ValueError("Partial numerators must have shape [1,Hq,1,D]")
@@ -66,4 +71,4 @@ def merge_partials(parts: Sequence[PartialAttention]) -> mx.array:
     denominator = mx.sum(factors * mx.stack([part.l for part in parts]), axis=0)
     numerator = mx.sum(factors * mx.stack([part.u for part in parts]), axis=0)
     # An exclusively empty collection is neutral; complete attention rejects N=0.
-    return numerator / mx.where(denominator > 0, denominator, 1.0)
+    return (numerator / mx.where(denominator > 0, denominator, 1.0)).astype(dtype)

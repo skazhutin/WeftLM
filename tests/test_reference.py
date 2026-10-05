@@ -76,9 +76,7 @@ def test_invalid_shapes(shapes):
 
 def test_rejects_unsupported_dtype():
     with pytest.raises(ValueError, match="float32"):
-        reference_attention(
-            *(mx.zeros((1, 1, 1, 2), dtype=mx.float16) for _ in range(3))
-        )
+        reference_attention(*(mx.zeros((1, 1, 1, 2), dtype=mx.int32) for _ in range(3)))
 
 
 def test_rejects_nonfinite_scale():

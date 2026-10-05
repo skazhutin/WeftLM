@@ -24,8 +24,10 @@ def validate_inputs(
         )
     if length == 0 and not allow_empty:
         raise ValueError("The complete KV context must not be empty")
-    if any(x.dtype != mx.float32 for x in (q, k, v)):
-        raise ValueError("Q, K and V must all use float32")
+    if q.dtype not in (mx.float32, mx.float16) or any(
+        x.dtype != q.dtype for x in (k, v)
+    ):
+        raise ValueError("Q, K and V must use the same float32 or float16 dtype")
     return hq, hkv, length, dim
 
 
