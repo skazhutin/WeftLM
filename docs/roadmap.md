@@ -31,8 +31,8 @@ operation time. Component timings are separate diagnostic measurements.
 | Step | Deliverable and acceptance | Status / verified commit |
 |---|---|---|
 | 1 | Input contract and independent FP32 full attention; hand examples and invalid shapes | Verified `81d582f`; local checks and CI passed |
-| 2 | Local m/l/u and stable merge; two equal shards match reference | Implemented; local checks pass; CI pending |
-| 3 | GQA/MQA, unequal and empty shards, concentrated attention; finite correct results | Pending |
+| 2 | Local m/l/u and stable merge; two equal shards match reference | Verified `57eb2f4`; local checks and CI passed |
+| 3 | GQA/MQA, unequal and empty shards, concentrated attention; finite correct results | Implemented; local checks pass; CI pending |
 | 4 | FP16 inputs with FP32 computation/statistics; quantized-input reference parity | Pending |
 | 5 | Bounded-block partial attention; parity with direct path and bounded temporaries | Pending |
 | 6 | Deterministic global Q/K/V fixture generation; identical data across partitions | Pending |

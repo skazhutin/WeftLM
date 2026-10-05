@@ -48,3 +48,41 @@ def test_merge_rejects_mismatched_shapes():
     bad = PartialAttention(part.m, part.l, mx.zeros((1, 3, 1, 8)))
     with pytest.raises(ValueError, match="shapes"):
         merge_partials([part, bad])
+
+
+@pytest.mark.parametrize("hq,hkv", [(1, 1), (4, 2), (8, 1), (32, 8)])
+@pytest.mark.parametrize("cuts", [(0, 3, 12), (0, 0, 1, 5, 7, 12, 12)])
+def test_unequal_and_empty_gqa_shards(hq, hkv, cuts):
+    q, k, v = fixture_arrays(hq=hq, hkv=hkv)
+    parts = [
+        partial_attention(q, k[:, :, a:b], v[:, :, a:b]) for a, b in zip(cuts, cuts[1:])
+    ]
+    out = merge_partials(parts)
+    assert mx.all(mx.isfinite(out)).item()
+    assert mx.allclose(out, reference_attention(q, k, v), rtol=1e-4, atol=1e-5).item()
+
+
+def test_all_empty_statistics_are_neutral():
+    q, k, v = fixture_arrays(hq=4, hkv=1, length=0)
+    part = partial_attention(q, k, v)
+    out = merge_partials([part, part])
+    assert mx.all(mx.isfinite(out)).item()
+    assert mx.all(out == 0).item()
+
+
+@pytest.mark.parametrize("winner", [0, 1])
+def test_concentrated_attention(winner):
+    q = mx.ones((1, 1, 1, 4)) * 100
+    k = mx.concatenate(
+        [mx.ones((1, 1, 3, 4)) * (100 if winner == i else -100) for i in range(2)],
+        axis=2,
+    )
+    v = mx.concatenate([mx.ones((1, 1, 3, 4)) * i for i in range(2)], axis=2)
+    out = merge_partials(
+        [
+            partial_attention(q, k[:, :, :3], v[:, :, :3]),
+            partial_attention(q, k[:, :, 3:], v[:, :, 3:]),
+        ]
+    )
+    assert mx.all(out == winner).item()
+    assert mx.allclose(out, reference_attention(q, k, v)).item()

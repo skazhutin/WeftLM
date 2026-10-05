@@ -20,14 +20,25 @@ class PartialAttention:
 def partial_attention(
     q: mx.array, k: mx.array, v: mx.array, *, scale: float | None = None
 ) -> PartialAttention:
-    hq, hkv, _, dim = validate_inputs(q, k, v)
-    if hq != hkv:
-        raise ValueError("Local statistics currently require equal Q/KV head counts")
-    scores = (q @ mx.swapaxes(k, -1, -2)) * attention_scale(dim, scale)
+    hq, hkv, length, dim = validate_inputs(q, k, v, allow_empty=True)
+    factor = attention_scale(dim, scale)
+    if length == 0:
+        return PartialAttention(
+            mx.full((1, hq, 1, 1), -float("inf")),
+            mx.zeros((1, hq, 1, 1)),
+            mx.zeros((1, hq, 1, dim)),
+        )
+    groups = hq // hkv
+    queries = q.reshape(1, hkv, groups, 1, dim)
+    keys = mx.expand_dims(k, 2)
+    scores = ((queries @ mx.swapaxes(keys, -1, -2)) * factor).reshape(1, hq, 1, length)
     maximum = mx.max(scores, axis=-1, keepdims=True)
     weights = mx.exp(scores - maximum)
+    numerator = weights.reshape(1, hkv, groups, 1, length) @ mx.expand_dims(v, 2)
     return PartialAttention(
-        maximum, mx.sum(weights, axis=-1, keepdims=True), weights @ v
+        maximum,
+        mx.sum(weights, axis=-1, keepdims=True),
+        numerator.reshape(1, hq, 1, dim),
     )
 
 
@@ -49,7 +60,10 @@ def merge_partials(parts: Sequence[PartialAttention]) -> mx.array:
         if any(x.dtype != mx.float32 for x in (part.m, part.l, part.u)):
             raise ValueError("Partial statistics must use float32")
     maxima = mx.stack([part.m for part in parts])
-    factors = mx.exp(maxima - mx.max(maxima, axis=0))
+    maximum = mx.max(maxima, axis=0)
+    safe_maximum = mx.where(mx.isfinite(maximum), maximum, 0.0)
+    factors = mx.where(mx.isfinite(maxima), mx.exp(maxima - safe_maximum), 0.0)
     denominator = mx.sum(factors * mx.stack([part.l for part in parts]), axis=0)
     numerator = mx.sum(factors * mx.stack([part.u for part in parts]), axis=0)
-    return numerator / denominator
+    # An exclusively empty collection is neutral; complete attention rejects N=0.
+    return numerator / mx.where(denominator > 0, denominator, 1.0)
