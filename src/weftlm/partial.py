@@ -43,14 +43,10 @@ def partial_attention(
     )
 
 
-def merge_partials(
-    parts: Sequence[PartialAttention], *, dtype: mx.Dtype = mx.float32
-) -> mx.array:
-    """Recover complete attention; local outputs must not simply be averaged."""
+def combine_partials(parts: Sequence[PartialAttention]) -> PartialAttention:
+    """Combine statistics without normalizing, so they can be merged again."""
     if not parts:
         raise ValueError("At least one partial result is required")
-    if dtype not in (mx.float32, mx.float16):
-        raise ValueError("Output dtype must be float32 or float16")
     shape = parts[0].u.shape
     if len(shape) != 4 or shape[0] != 1 or shape[2] != 1 or min(shape) <= 0:
         raise ValueError("Partial numerators must have shape [1,Hq,1,D]")
@@ -70,5 +66,56 @@ def merge_partials(
     factors = mx.where(mx.isfinite(maxima), mx.exp(maxima - safe_maximum), 0.0)
     denominator = mx.sum(factors * mx.stack([part.l for part in parts]), axis=0)
     numerator = mx.sum(factors * mx.stack([part.u for part in parts]), axis=0)
-    # An exclusively empty collection is neutral; complete attention rejects N=0.
-    return (numerator / mx.where(denominator > 0, denominator, 1.0)).astype(dtype)
+    return PartialAttention(maximum, denominator, numerator)
+
+
+def merge_partials(
+    parts: Sequence[PartialAttention], *, dtype: mx.Dtype = mx.float32
+) -> mx.array:
+    """Recover attention; an exclusively empty collection produces zeros."""
+    if dtype not in (mx.float32, mx.float16):
+        raise ValueError("Output dtype must be float32 or float16")
+    part = combine_partials(parts)
+    return (part.u / mx.where(part.l > 0, part.l, 1.0)).astype(dtype)
+
+
+def blocked_partial_attention(
+    q: mx.array,
+    k: mx.array,
+    v: mx.array,
+    *,
+    block_size: int = 4096,
+    scale: float | None = None,
+) -> PartialAttention:
+    """Bound FP32 conversions and logits to one KV block at a time."""
+    _, _, length, _ = validate_inputs(q, k, v, allow_empty=True)
+    if (
+        not isinstance(block_size, int)
+        or isinstance(block_size, bool)
+        or block_size <= 0
+    ):
+        raise ValueError("Block size must be a positive integer")
+    if length == 0:
+        return partial_attention(q, k, v, scale=scale)
+    combined = None
+    for start in range(0, length, block_size):
+        part = partial_attention(
+            q,
+            k[:, :, start : start + block_size],
+            v[:, :, start : start + block_size],
+            scale=scale,
+        )
+        combined = part if combined is None else combine_partials([combined, part])
+        # Release evaluated block graphs instead of retaining all conversion buffers.
+        mx.eval(combined.m, combined.l, combined.u)
+    return combined
+
+
+def context_attention(
+    q: mx.array, k: mx.array, v: mx.array, *, block_size: int = 4096
+) -> mx.array:
+    """Complete one-device blocked attention; no distributed speed claim."""
+    validate_inputs(q, k, v)
+    return merge_partials(
+        [blocked_partial_attention(q, k, v, block_size=block_size)], dtype=q.dtype
+    )
