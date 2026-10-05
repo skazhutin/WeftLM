@@ -37,8 +37,8 @@ operation time. Component timings are separate diagnostic measurements.
 | 5 | Bounded-block partial attention; parity with direct path and bounded temporaries | Verified `88c9cb8`; local checks and CI passed |
 | 6 | Deterministic global Q/K/V fixture generation; identical data across partitions | Verified `a17a514`; local checks and CI passed |
 | 7 | Optimized MLX full-attention control; FP32/FP16 correctness without KV tiling | Verified `45d86a5`; local checks and CI passed |
-| 8 | Warmup/timing runner; 50 newly computed GPU-complete outputs after 10 warmups | Implemented; local checks pass; CI pending |
-| 9 | CLI, raw JSONL, run metadata and CSV median/p95 summary; reproducible commands | Pending |
+| 8 | Warmup/timing runner; 50 newly computed GPU-complete outputs after 10 warmups | Verified `0351ef7`; local checks and CI passed |
+| 9 | CLI, raw JSONL, run metadata and CSV median/p95 summary; reproducible commands | Implemented; local checks pass; CI pending |
 | 10 | Physical local-Mac sweep at the prescribed lengths; timings, error and memory | Pending |
 | 11 | Ring collective probe on two local CPU processes; strict world size and timeout | Pending |
 | 12 | Distributed context attention; all-gather m/l/u, full output on both ranks | Pending |

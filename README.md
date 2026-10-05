@@ -4,8 +4,9 @@ Experimental context-parallel inference for long-context LLMs on Apple Silicon.
 
 ## Status
 
-The input contract and an independent FP32 attention reference are implemented.
-Sharded attention and distributed benchmarks are planned next. The project will
+The independent reference, stable local KV merging, GQA, FP16/FP32 and bounded
+KV blocks are implemented. The research CLI supports local measurements;
+distributed benchmarks are planned next. The project will
 measure whether context parallelism offers useful latency or memory benefits across
 multiple Macs.
 
@@ -92,6 +93,24 @@ commits. The small reference is available as
 without copying KV heads, and is intended for correctness rather than timing.
 
 ## Research roadmap
+
+### Local commands
+
+```sh
+uv run --locked python -m weftlm check --device gpu
+uv run --locked python -m weftlm bench --mode single --output results/single-run
+uv run --locked python -m weftlm bench --mode local-context --output results/local-context-run
+uv run --locked python -m weftlm summarize --input results/single-run
+```
+
+Use `--device cpu` for small correctness/CLI checks, and `--help` for all options.
+Benchmarks default to 10 warmups and 50 measurements at 4k, 16k, 64k, 128k and
+256k tokens. Inputs are generated outside timing. Each result directory contains
+raw `samples.jsonl`, `metadata.json` and `summary.csv` (nearest-rank p95).
+Output directories must be new. `local-context` is a blocked calculation on one
+Mac; it is not a measurement of two-node context parallelism.
+
+### Planned physical experiments
 
 1. **Correctness on one Mac.** Implement an independent full-attention reference,
    local shard statistics, and stable merging of KV shards. Cover grouped-query
