@@ -4,8 +4,8 @@ Experimental context-parallel inference for long-context LLMs on Apple Silicon.
 
 ## Status
 
-Initial research scaffold. The Python package and development environment are ready;
-attention algorithms and distributed benchmarks are planned next. The project will
+The input contract and an independent FP32 attention reference are implemented.
+Sharded attention and distributed benchmarks are planned next. The project will
 measure whether context parallelism offers useful latency or memory benefits across
 multiple Macs.
 
@@ -85,6 +85,11 @@ docs/project_spec.md  Original project specification in Russian
 The [project specification](docs/project_spec.md) describes the experiment,
 comparison contract, and measurement protocol. Its implementation tasks are
 planned work, not features already present in this scaffold.
+
+The [implementation roadmap](docs/roadmap.md) tracks individual tasks and verified
+commits. The small reference is available as
+`weftlm.reference.reference_attention`; it supports one query token and GQA
+without copying KV heads, and is intended for correctness rather than timing.
 
 ## Research roadmap
 
