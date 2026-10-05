@@ -35,8 +35,8 @@ operation time. Component timings are separate diagnostic measurements.
 | 3 | GQA/MQA, unequal and empty shards, concentrated attention; finite correct results | Verified `b3ce354`; local checks and CI passed |
 | 4 | FP16 inputs with FP32 computation/statistics; quantized-input reference parity | Verified `97045a6`; local checks and CI passed |
 | 5 | Bounded-block partial attention; parity with direct path and bounded temporaries | Verified `88c9cb8`; local checks and CI passed |
-| 6 | Deterministic global Q/K/V fixture generation; identical data across partitions | Implemented; local checks pass; CI pending |
-| 7 | Optimized MLX full-attention control; FP32/FP16 correctness without KV tiling | Pending |
+| 6 | Deterministic global Q/K/V fixture generation; identical data across partitions | Verified `a17a514`; local checks and CI passed |
+| 7 | Optimized MLX full-attention control; FP32/FP16 correctness without KV tiling | Implemented; local checks pass; CI pending |
 | 8 | Warmup/timing runner; 50 newly computed GPU-complete outputs after 10 warmups | Pending |
 | 9 | CLI, raw JSONL, run metadata and CSV median/p95 summary; reproducible commands | Pending |
 | 10 | Physical local-Mac sweep at the prescribed lengths; timings, error and memory | Pending |
