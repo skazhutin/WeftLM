@@ -7,6 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from weftlm.distributed import partition_inputs
+from weftlm.fixtures import AttentionConfig
+
 
 def launch(*arguments, timeout=30, program=("-m", "weftlm")):
     """Bound native collectives and clean up the launcher and its children."""
@@ -114,3 +117,44 @@ else:
 """
     rows = launch(program=("-c", code))
     assert sorted(row["rank"] for row in rows if row["rejected"]) == [0, 1]
+
+
+@pytest.mark.parametrize("dtype", ["float16", "float32"])
+def test_optimized_head_split_both_ranks_match_reference(dtype):
+    rows = launch(
+        "check-distributed",
+        "--mode",
+        "heads",
+        "--device",
+        "cpu",
+        "--length",
+        "11",
+        "--hq",
+        "8",
+        "--hkv",
+        "4",
+        "--dim",
+        "8",
+        "--dtype",
+        dtype,
+    )
+    assert sorted(row["rank"] for row in rows) == [0, 1]
+    for row in rows:
+        assert row["error"]["passed"]
+        assert row["output_shape"] == [1, 8, 1, 8]
+        rank = row["rank"]
+        assert row["token_range"] == [0, 11]
+        assert row["kv_head_range"] == [2 * rank, 2 * (rank + 1)]
+        assert row["query_head_range"] == [4 * rank, 4 * (rank + 1)]
+
+
+def test_head_partition_rejects_incomplete_groups():
+    class Group:
+        def rank(self):
+            return 0
+
+        def size(self):
+            return 2
+
+    with pytest.raises(ValueError, match="Hkv divisible"):
+        partition_inputs(AttentionConfig(hq=4, hkv=1), group=Group(), mode="heads")

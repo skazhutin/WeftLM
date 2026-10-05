@@ -12,7 +12,9 @@ from .benchmark import benchmark_local, error_metrics
 from .distributed import (
     agree_protocol,
     distributed_context_attention,
+    distributed_head_attention,
     initialize_group,
+    partition_inputs,
     probe_collectives,
 )
 from .fixtures import AttentionConfig, make_inputs
@@ -65,6 +67,9 @@ def main(argv=None) -> int:
         "check-distributed", help="Check attention on two launched participants"
     )
     add_config(distributed_check, lengths=False)
+    distributed_check.add_argument(
+        "--mode", choices=["context", "heads"], default="context"
+    )
     bench = commands.add_parser("bench", help="Measure a synthetic attention operation")
     add_config(bench, lengths=True)
     bench.add_argument("--mode", choices=["single", "local-context"], default="single")
@@ -100,13 +105,18 @@ def main(argv=None) -> int:
                     "Use a small length (<=4096) for the full reference check"
                 )
             group = initialize_group()
-            agree_protocol(group, {"check": asdict(config), "device": args.device})
-            start = config.length * group.rank() // group.size()
-            end = config.length * (group.rank() + 1) // group.size()
-            q, k, v = make_inputs(config, token_range=(start, end))
+            agree_protocol(
+                group,
+                {"check": asdict(config), "device": args.device, "mode": args.mode},
+            )
+            (q, k, v), ownership = partition_inputs(config, group=group, mode=args.mode)
             with mx.stream(device):
-                output = distributed_context_attention(
-                    q, k, v, group=group, block_size=config.block_size
+                output = (
+                    distributed_context_attention(
+                        q, k, v, group=group, block_size=config.block_size
+                    )
+                    if args.mode == "context"
+                    else distributed_head_attention(q, k, v, group=group)
                 )
                 mx.eval(output)
                 # Small diagnostic only: full inputs never enter distributed timing.
@@ -119,8 +129,8 @@ def main(argv=None) -> int:
                     {
                         "rank": group.rank(),
                         "world_size": group.size(),
-                        "mode": "context",
-                        "token_range": [start, end],
+                        "mode": args.mode,
+                        **ownership,
                         "output_shape": output.shape,
                         "error": error,
                     }

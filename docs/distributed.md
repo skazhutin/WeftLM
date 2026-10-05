@@ -38,3 +38,10 @@ m/l/u into one FP32 array, gathers the packets on the CPU communication stream
 and merges them on the selected compute device. An empty local slice is legal.
 This check builds full inputs outside the distributed operation for independent
 reference validation; lengths above 4096 are rejected to keep it a small diagnostic.
+
+For the optimized head-split control, add `--mode heads` to the check command.
+Hkv must be divisible by two. Each participant owns half the KV heads and their
+whole consecutive GQA query groups, over the full context. It calls native
+`mx.fast.scaled_dot_product_attention`, then gathers output heads in rank order.
+The full `[1,Hq,1,D]` result is available on both participants. This control
+splits one attention operation; it is not full-model tensor parallelism.

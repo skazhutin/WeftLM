@@ -5,6 +5,8 @@ import json
 
 import mlx.core as mx
 
+from .baselines import optimized_attention
+from .fixtures import AttentionConfig, make_inputs
 from .partial import PartialAttention, blocked_partial_attention, merge_partials
 from .results import summarize_samples
 from .timing import measure
@@ -51,6 +53,34 @@ def distributed_context_attention(q, k, v, *, group, block_size=4096):
     local = blocked_partial_attention(q, k, v, block_size=block_size)
     packets = mx.distributed.all_gather(pack_partial(local), group=group, stream=mx.cpu)
     return merge_packets(packets, dtype=q.dtype)
+
+
+def distributed_head_attention(q, k, v, *, group):
+    """Optimized local head groups followed by complete output collection."""
+    local = optimized_attention(q, k, v)
+    return mx.distributed.all_gather(local[0], group=group, stream=mx.cpu)[None]
+
+
+def partition_inputs(config: AttentionConfig, *, group, mode: str):
+    rank, size = group.rank(), group.size()
+    if mode == "context":
+        start, end = config.length * rank // size, config.length * (rank + 1) // size
+        return make_inputs(config, token_range=(start, end)), {
+            "token_range": [start, end],
+            "kv_head_range": [0, config.hkv],
+            "query_head_range": [0, config.hq],
+        }
+    if mode == "heads":
+        if config.hkv % size:
+            raise ValueError("Head splitting requires Hkv divisible by world size")
+        first, last = config.hkv * rank // size, config.hkv * (rank + 1) // size
+        groups = config.hq // config.hkv
+        return make_inputs(config, head_range=(first, last)), {
+            "token_range": [0, config.length],
+            "kv_head_range": [first, last],
+            "query_head_range": [first * groups, last * groups],
+        }
+    raise ValueError("Distributed mode must be context or heads")
 
 
 def probe_collectives(*, payload_bytes=16640, warmup=3, repeats=10) -> dict:

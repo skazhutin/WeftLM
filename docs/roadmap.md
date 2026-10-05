@@ -41,8 +41,8 @@ operation time. Component timings are separate diagnostic measurements.
 | 9 | CLI, raw JSONL, run metadata and CSV median/p95 summary; reproducible commands | Verified `944497b`; local checks and CI passed |
 | 10 | Physical local-Mac sweep at the prescribed lengths; timings, error and memory | Verified `f9fa839`; local checks and CI passed |
 | 11 | Ring collective probe on two local CPU processes; strict world size and timeout | Verified `a541c0b`; local checks and CI passed |
-| 12 | Distributed context attention; all-gather m/l/u, full output on both ranks | Implemented; local checks pass; CI pending |
-| 13 | Optimized head-split control; full gathered output and correct GQA head ownership | Pending |
+| 12 | Distributed context attention; all-gather m/l/u, full output on both ranks | Verified `097ccb9`; local checks and CI passed |
+| 13 | Optimized head-split control; full gathered output and correct GQA head ownership | Implemented; local checks pass; CI pending |
 | 14 | Distributed benchmark runner; full operation latency and per-rank raw data | Pending |
 | 15 | Prepare two physical Macs: inventory, connection, access, identical checkout/lock | Hardware required |
 | 16 | Physical transport/correctness probe and measured communication latency | Hardware required |
