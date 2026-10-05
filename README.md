@@ -51,6 +51,10 @@ The environment test evaluates a small MLX matrix multiplication on CPU and
 checks its result. It verifies the dependency setup; it does not test attention
 correctness or distributed performance yet.
 
+GitHub Actions runs these checks on macOS ARM64 with Python 3.12 for pushes to
+`main` and pull requests. CI uses the CPU backend for the environment test and
+also verifies that the built wheel imports in an isolated environment.
+
 To check the Metal GPU backend on a physical Mac:
 
 ```sh
