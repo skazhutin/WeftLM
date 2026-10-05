@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 
-def launch(*arguments, timeout=30):
+def launch(*arguments, timeout=30, program=("-m", "weftlm")):
     """Bound native collectives and clean up the launcher and its children."""
     command = [
         str(Path(sys.executable).parent / "mlx.launch"),
@@ -19,8 +19,7 @@ def launch(*arguments, timeout=30):
         "--python",
         sys.executable,
         "--",
-        "-m",
-        "weftlm",
+        *program,
         *arguments,
     ]
     process = subprocess.Popen(
@@ -69,3 +68,49 @@ def test_probe_rejects_singleton_and_invalid_payload():
         )
         assert result.returncode != 0
         assert message in result.stderr
+
+
+@pytest.mark.parametrize(
+    "length,dtype", [(1, "float32"), (7, "float16"), (9, "float32")]
+)
+def test_context_attention_both_ranks_match_independent_reference(length, dtype):
+    rows = launch(
+        "check-distributed",
+        "--device",
+        "cpu",
+        "--length",
+        str(length),
+        "--hq",
+        "4",
+        "--hkv",
+        "2",
+        "--dim",
+        "8",
+        "--block-size",
+        "2",
+        "--dtype",
+        dtype,
+    )
+    assert sorted(row["rank"] for row in rows) == [0, 1]
+    for row in rows:
+        assert row["error"]["passed"]
+        assert row["error"]["finite"]
+        assert row["output_shape"] == [1, 4, 1, 8]
+        rank = row["rank"]
+        assert row["token_range"] == [length * rank // 2, length * (rank + 1) // 2]
+
+
+def test_mismatched_protocol_is_rejected_on_both_ranks():
+    code = """
+import json
+from weftlm.distributed import initialize_group, agree_protocol
+group = initialize_group()
+try:
+    agree_protocol(group, {"length": 7 + group.rank()})
+except ValueError:
+    print(json.dumps({"rank": group.rank(), "rejected": True}), flush=True)
+else:
+    raise AssertionError("Mismatched protocol was accepted")
+"""
+    rows = launch(program=("-c", code))
+    assert sorted(row["rank"] for row in rows if row["rejected"]) == [0, 1]

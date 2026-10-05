@@ -2,13 +2,19 @@
 
 import argparse
 import json
+from dataclasses import asdict
 from pathlib import Path
 
 import mlx.core as mx
 
 from .baselines import optimized_attention
 from .benchmark import benchmark_local, error_metrics
-from .distributed import probe_collectives
+from .distributed import (
+    agree_protocol,
+    distributed_context_attention,
+    initialize_group,
+    probe_collectives,
+)
 from .fixtures import AttentionConfig, make_inputs
 from .partial import context_attention
 from .reference import reference_attention
@@ -55,6 +61,10 @@ def main(argv=None) -> int:
     probe.add_argument("--repeats", type=int, default=10)
     check = commands.add_parser("check", help="Compare synthetic attention outputs")
     add_config(check, lengths=False)
+    distributed_check = commands.add_parser(
+        "check-distributed", help="Check attention on two launched participants"
+    )
+    add_config(distributed_check, lengths=False)
     bench = commands.add_parser("bench", help="Measure a synthetic attention operation")
     add_config(bench, lengths=True)
     bench.add_argument("--mode", choices=["single", "local-context"], default="single")
@@ -83,6 +93,41 @@ def main(argv=None) -> int:
             print(json.dumps(summarize_directory(args.input), indent=2))
             return 0
         device = mx.gpu if args.device == "gpu" else mx.cpu
+        if args.command == "check-distributed":
+            config = config_from(args, args.length)
+            if config.length > 4096:
+                raise ValueError(
+                    "Use a small length (<=4096) for the full reference check"
+                )
+            group = initialize_group()
+            agree_protocol(group, {"check": asdict(config), "device": args.device})
+            start = config.length * group.rank() // group.size()
+            end = config.length * (group.rank() + 1) // group.size()
+            q, k, v = make_inputs(config, token_range=(start, end))
+            with mx.stream(device):
+                output = distributed_context_attention(
+                    q, k, v, group=group, block_size=config.block_size
+                )
+                mx.eval(output)
+                # Small diagnostic only: full inputs never enter distributed timing.
+                full_inputs = make_inputs(config)
+                error = error_metrics(
+                    output, reference_attention(*full_inputs), config.dtype
+                )
+            print(
+                json.dumps(
+                    {
+                        "rank": group.rank(),
+                        "world_size": group.size(),
+                        "mode": "context",
+                        "token_range": [start, end],
+                        "output_shape": output.shape,
+                        "error": error,
+                    }
+                ),
+                flush=True,
+            )
+            return 0 if error["passed"] else 1
         if args.command == "check":
             config = config_from(args, args.length)
             q, k, v = make_inputs(config)

@@ -5,6 +5,7 @@ import json
 
 import mlx.core as mx
 
+from .partial import PartialAttention, blocked_partial_attention, merge_partials
 from .results import summarize_samples
 from .timing import measure
 
@@ -25,6 +26,31 @@ def agree_protocol(group, protocol: dict) -> None:
         rows = gathered.reshape(group.size(), len(digest)).tolist()
     if any(row != rows[0] for row in rows[1:]):
         raise ValueError("Participants disagree on the operation protocol")
+
+
+def pack_partial(part: PartialAttention) -> mx.array:
+    return mx.concatenate([part.m, part.l, part.u], axis=-1)
+
+
+def merge_packets(packets: mx.array, *, dtype: mx.Dtype) -> mx.array:
+    if packets.ndim != 4 or packets.shape[2] != 1 or packets.shape[-1] < 3:
+        raise ValueError("Statistic packets must have shape [world,Hq,1,D+2]")
+    parts = [
+        PartialAttention(
+            packets[rank : rank + 1, :, :, :1],
+            packets[rank : rank + 1, :, :, 1:2],
+            packets[rank : rank + 1, :, :, 2:],
+        )
+        for rank in range(packets.shape[0])
+    ]
+    return merge_partials(parts, dtype=dtype)
+
+
+def distributed_context_attention(q, k, v, *, group, block_size=4096):
+    """Local KV only; gather FP32 statistics and recover the full output."""
+    local = blocked_partial_attention(q, k, v, block_size=block_size)
+    packets = mx.distributed.all_gather(pack_partial(local), group=group, stream=mx.cpu)
+    return merge_packets(packets, dtype=q.dtype)
 
 
 def probe_collectives(*, payload_bytes=16640, warmup=3, repeats=10) -> dict:

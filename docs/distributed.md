@@ -24,3 +24,17 @@ manual runs should be supervised and interrupted if the peer fails. MLX's
 launcher terminates peers on detected process failure.
 
 Transport and launcher reference: [MLX distributed communication](https://ml-explore.github.io/mlx/build/html/usage/distributed.html).
+
+Check context partitioning, GQA and full output recovery on both participants:
+
+```sh
+uv run --locked mlx.launch --backend ring -n 2 --python .venv/bin/python -- \
+  -m weftlm check-distributed --device cpu --length 17 --dtype float32
+```
+
+Rank r owns tokens `[N*r/2, N*(r+1)/2)` with integer division. Only its KV
+slice is generated. Each rank computes bounded-block FP32 statistics, packs
+m/l/u into one FP32 array, gathers the packets on the CPU communication stream
+and merges them on the selected compute device. An empty local slice is legal.
+This check builds full inputs outside the distributed operation for independent
+reference validation; lengths above 4096 are rejected to keep it a small diagnostic.
