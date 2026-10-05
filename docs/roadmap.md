@@ -39,8 +39,8 @@ operation time. Component timings are separate diagnostic measurements.
 | 7 | Optimized MLX full-attention control; FP32/FP16 correctness without KV tiling | Verified `45d86a5`; local checks and CI passed |
 | 8 | Warmup/timing runner; 50 newly computed GPU-complete outputs after 10 warmups | Verified `0351ef7`; local checks and CI passed |
 | 9 | CLI, raw JSONL, run metadata and CSV median/p95 summary; reproducible commands | Verified `944497b`; local checks and CI passed |
-| 10 | Physical local-Mac sweep at the prescribed lengths; timings, error and memory | Implemented; local checks pass; CI pending |
-| 11 | Ring collective probe on two local CPU processes; strict world size and timeout | Pending |
+| 10 | Physical local-Mac sweep at the prescribed lengths; timings, error and memory | Verified `f9fa839`; local checks and CI passed |
+| 11 | Ring collective probe on two local CPU processes; strict world size and timeout | Implemented; local checks pass; CI pending |
 | 12 | Distributed context attention; all-gather m/l/u, full output on both ranks | Pending |
 | 13 | Optimized head-split control; full gathered output and correct GQA head ownership | Pending |
 | 14 | Distributed benchmark runner; full operation latency and per-rank raw data | Pending |

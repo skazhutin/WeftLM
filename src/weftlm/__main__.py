@@ -8,6 +8,7 @@ import mlx.core as mx
 
 from .baselines import optimized_attention
 from .benchmark import benchmark_local, error_metrics
+from .distributed import probe_collectives
 from .fixtures import AttentionConfig, make_inputs
 from .partial import context_attention
 from .reference import reference_attention
@@ -48,6 +49,10 @@ def config_from(args, length):
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="weftlm", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    probe = commands.add_parser("probe", help="Check two-participant ring all-gather")
+    probe.add_argument("--payload-bytes", type=int, default=16640)
+    probe.add_argument("--warmup", type=int, default=3)
+    probe.add_argument("--repeats", type=int, default=10)
     check = commands.add_parser("check", help="Compare synthetic attention outputs")
     add_config(check, lengths=False)
     bench = commands.add_parser("bench", help="Measure a synthetic attention operation")
@@ -62,6 +67,18 @@ def main(argv=None) -> int:
     summary.add_argument("--input", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
+        if args.command == "probe":
+            print(
+                json.dumps(
+                    probe_collectives(
+                        payload_bytes=args.payload_bytes,
+                        warmup=args.warmup,
+                        repeats=args.repeats,
+                    )
+                ),
+                flush=True,
+            )
+            return 0
         if args.command == "summarize":
             print(json.dumps(summarize_directory(args.input), indent=2))
             return 0
